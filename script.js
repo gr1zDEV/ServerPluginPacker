@@ -1,6 +1,6 @@
 const MODRINTH_API_BASE = 'https://api.modrinth.com/v2';
 const SETTINGS_KEY = 'modrinthBulkDownloaderSettings_v1';
-const FALLBACK_MINECRAFT_VERSIONS = ['1.21.5', '1.21.4', '1.21.3', '1.21.2', '1.21.1', '1.21'];
+const FALLBACK_MINECRAFT_VERSIONS = ['26.1', '1.21.5', '1.21.4', '1.21.3', '1.21.2', '1.21.1'];
 
 const dom = {
   minecraftVersion: document.getElementById('minecraftVersion'),
