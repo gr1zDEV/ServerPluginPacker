@@ -82,4 +82,5 @@ MIT (or your preferred license)
 
 ## Supported Minecraft versions
 
-The UI intentionally caps selectable versions at **1.21.5** to match this site's support policy, even if Modrinth adds newer game versions.
+Minecraft versions are loaded dynamically from Modrinth (`/v2/tag/game_version`), so newly released versions appear automatically without requiring manual updates.
+If that request fails, the UI falls back to a small built-in list so the app remains usable.
