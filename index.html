@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modrinth Bulk Downloader</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-xXDvecy94w6D5M8n11ivA26EFN3XJvA4QXf10FZsQ5V9Yx8RJWb1x1oGf4bm/FYnGV8eK3opgDdBrYqYv7v7jw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header card">
+        <div>
+          <h1>Modrinth Bulk Downloader</h1>
+          <p class="subtitle">
+            Resolve matching Modrinth plugin files for your chosen Minecraft version and loader, then bundle everything into a single ZIP in your browser.
+          </p>
+        </div>
+        <div class="badge" id="matchBadge">0 matched</div>
+      </header>
+
+      <section class="card controls-card">
+        <h2>Downloader Controls</h2>
+        <p class="warning">
+          ⚠️ Some projects may not support the selected Minecraft version and loader combination.
+        </p>
+
+        <div class="controls-grid">
+          <label>
+            Minecraft Version
+            <select id="minecraftVersion"></select>
+          </label>
+
+          <label>
+            Loader
+            <select id="loader">
+              <option value="paper">paper</option>
+              <option value="purpur">purpur</option>
+              <option value="spigot">spigot</option>
+              <option value="bukkit">bukkit</option>
+              <option value="velocity">velocity</option>
+              <option value="waterfall">waterfall</option>
+              <option value="bungeecord">bungeecord</option>
+              <option value="fabric">fabric</option>
+              <option value="quilt">quilt</option>
+              <option value="forge">forge</option>
+              <option value="neoforge">neoforge</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="options-row">
+          <label class="checkbox-wrap">
+            <input type="checkbox" id="featuredOnly" />
+            Only use featured versions
+          </label>
+
+          <label class="checkbox-wrap">
+            <input type="checkbox" id="autoDownload" />
+            Auto-download ZIP when complete
+          </label>
+        </div>
+
+        <label for="projectList">Projects (one slug or project ID per line)</label>
+        <textarea id="projectList" rows="10" spellcheck="false"></textarea>
+
+        <div class="drop-zone" id="dropZone" aria-label="Drop text file here">
+          Drag & drop a .txt file here to replace the project list
+        </div>
+
+        <div class="action-row">
+          <button id="runBtn">Fetch & Build ZIP</button>
+          <button id="downloadBtn" disabled>Download ZIP</button>
+          <button id="retryFailedBtn" disabled>Retry Failed</button>
+          <button id="copyFailedBtn" disabled>Copy Failed Entries</button>
+        </div>
+
+        <div id="feedback" class="feedback"></div>
+      </section>
+
+      <section class="card progress-card">
+        <h2>Progress</h2>
+        <div class="progress-grid">
+          <div><span>Total</span><strong id="totalCount">0</strong></div>
+          <div><span>Completed</span><strong id="completedCount">0</strong></div>
+          <div><span>Success</span><strong id="successCount">0</strong></div>
+          <div><span>Failed</span><strong id="failedCount">0</strong></div>
+          <div class="current"><span>Current</span><strong id="currentProject">—</strong></div>
+        </div>
+      </section>
+
+      <section class="card results-card">
+        <h2>Results</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Input</th>
+                <th>Project Title</th>
+                <th>Version</th>
+                <th>Type</th>
+                <th>Filename</th>
+                <th>Status</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="app-footer">
+        <p>Built for GitHub Pages. ZIP generation and downloads happen entirely in your browser.</p>
+      </footer>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
