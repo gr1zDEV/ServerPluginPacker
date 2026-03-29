@@ -30,7 +30,8 @@ const state = {
   matchedFiles: [],
   inProgress: false,
   availableMinecraftVersions: [],
-  hydratedSettings: null
+  hydratedSettings: null,
+  jsZipPromise: null
 };
 
 init();
@@ -379,7 +380,8 @@ async function fetchFileBlob(url) {
 }
 
 async function buildZip(files) {
-  const zip = new JSZip();
+  const JSZipCtor = await getJSZipConstructor();
+  const zip = new JSZipCtor();
   const duplicateNameCount = new Map();
 
   for (const file of files) {
@@ -397,6 +399,48 @@ async function buildZip(files) {
   }
 
   return zip.generateAsync({ type: 'blob' });
+}
+
+async function getJSZipConstructor() {
+  if (typeof window.JSZip === 'function') {
+    return window.JSZip;
+  }
+
+  if (!state.jsZipPromise) {
+    state.jsZipPromise = loadJSZipFromFallbackCdn().then(() => {
+      if (typeof window.JSZip !== 'function') {
+        throw new Error('JSZip loaded, but the global constructor is unavailable.');
+      }
+      return window.JSZip;
+    });
+  }
+
+  return state.jsZipPromise;
+}
+
+function loadJSZipFromFallbackCdn() {
+  const fallbackSrc = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+
+  return new Promise((resolve, reject) => {
+    const existingTag = document.querySelector(`script[data-jszip-fallback="true"][src="${fallbackSrc}"]`);
+    if (existingTag) {
+      if (typeof window.JSZip === 'function') {
+        resolve();
+        return;
+      }
+      existingTag.addEventListener('load', () => resolve(), { once: true });
+      existingTag.addEventListener('error', () => reject(new Error('Could not load JSZip from fallback CDN.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = fallbackSrc;
+    script.async = true;
+    script.dataset.jszipFallback = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Could not load JSZip from fallback CDN.'));
+    document.head.appendChild(script);
+  });
 }
 
 function sanitizeFilename(name) {
