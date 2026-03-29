@@ -44,11 +44,14 @@ Serve the repo root and open the page in your browser.
 
 ## Deploy to GitHub Pages
 
-1. Push this repository to GitHub.
-2. In GitHub: **Settings → Pages**.
-3. Set source to your branch (for example `main`) and root folder (`/root`).
-4. Save and wait for deployment.
-5. Open the published Pages URL.
+This repo includes a GitHub Actions workflow at `.github/workflows/pages.yml` that automatically builds and publishes GitHub Pages whenever you push to `main`.
+
+One-time setup:
+
+1. In GitHub: **Settings → Pages**.
+2. Set **Build and deployment** source to **GitHub Actions**.
+3. Push to `main` and wait for the **Deploy GitHub Pages** workflow to finish.
+4. Open the published Pages URL.
 
 ## Modrinth API notes
 
@@ -76,3 +79,7 @@ A custom `User-Agent` header is often requested by APIs, but browsers do not all
 ## License
 
 MIT (or your preferred license)
+
+## Supported Minecraft versions
+
+The UI intentionally caps selectable versions at **1.21.5** to match this site's support policy, even if Modrinth adds newer game versions.

@@ -1,5 +1,9 @@
 const MODRINTH_API_BASE = 'https://api.modrinth.com/v2';
 const SETTINGS_KEY = 'modrinthBulkDownloaderSettings_v1';
+const SUPPORTED_MINECRAFT_VERSIONS = [
+  '1.21.5', '1.21.4', '1.21.3', '1.21.2', '1.21.1', '1.21',
+  '1.20.6', '1.20.5', '1.20.4', '1.20.3', '1.20.2', '1.20.1', '1.20'
+];
 
 const dom = {
   minecraftVersion: document.getElementById('minecraftVersion'),
@@ -70,21 +74,17 @@ function bindEvents() {
 }
 
 function populateMinecraftVersions() {
-  const versions = [
-    '1.21.5', '1.21.4', '1.21.3', '1.21.2', '1.21.1', '1.21',
-    '1.20.6', '1.20.5', '1.20.4', '1.20.3', '1.20.2', '1.20.1', '1.20'
-  ];
-
   dom.minecraftVersion.innerHTML = '';
-  versions.forEach((version) => {
+  SUPPORTED_MINECRAFT_VERSIONS.forEach((version) => {
     const option = document.createElement('option');
     option.value = version;
     option.textContent = version;
     dom.minecraftVersion.appendChild(option);
   });
 
-  if (!dom.minecraftVersion.value) {
-    dom.minecraftVersion.value = versions[0];
+  const currentValue = dom.minecraftVersion.value;
+  if (!SUPPORTED_MINECRAFT_VERSIONS.includes(currentValue)) {
+    dom.minecraftVersion.value = SUPPORTED_MINECRAFT_VERSIONS[0];
   }
 }
 
@@ -109,7 +109,12 @@ function hydrateSettings() {
     if (typeof parsed.autoDownload === 'boolean') dom.autoDownload.checked = parsed.autoDownload;
 
     window.requestAnimationFrame(() => {
-      if (parsed.minecraftVersion) dom.minecraftVersion.value = parsed.minecraftVersion;
+      if (SUPPORTED_MINECRAFT_VERSIONS.includes(parsed.minecraftVersion)) {
+        dom.minecraftVersion.value = parsed.minecraftVersion;
+        return;
+      }
+
+      dom.minecraftVersion.value = SUPPORTED_MINECRAFT_VERSIONS[0];
     });
   } catch {
     // ignore malformed localStorage
