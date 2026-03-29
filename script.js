@@ -1,5 +1,6 @@
 const MODRINTH_API_BASE = 'https://api.modrinth.com/v2';
 const SETTINGS_KEY = 'modrinthBulkDownloaderSettings_v1';
+const FALLBACK_MINECRAFT_VERSIONS = ['1.21.5', '1.21.4', '1.21.3', '1.21.2', '1.21.1', '1.21'];
 
 const dom = {
   minecraftVersion: document.getElementById('minecraftVersion'),
@@ -27,15 +28,17 @@ const state = {
   zipBlob: null,
   failedInputs: [],
   matchedFiles: [],
-  inProgress: false
+  inProgress: false,
+  availableMinecraftVersions: [],
+  hydratedSettings: null
 };
 
 init();
 
-function init() {
+async function init() {
   setSampleProjects();
   hydrateSettings();
-  populateMinecraftVersions();
+  await populateMinecraftVersions();
   bindEvents();
 }
 
@@ -69,11 +72,9 @@ function bindEvents() {
   setupDragAndDrop();
 }
 
-function populateMinecraftVersions() {
-  const versions = [
-    '1.21.5', '1.21.4', '1.21.3', '1.21.2', '1.21.1', '1.21',
-    '1.20.6', '1.20.5', '1.20.4', '1.20.3', '1.20.2', '1.20.1', '1.20'
-  ];
+async function populateMinecraftVersions() {
+  const versions = await fetchMinecraftVersions();
+  state.availableMinecraftVersions = versions;
 
   dom.minecraftVersion.innerHTML = '';
   versions.forEach((version) => {
@@ -83,9 +84,13 @@ function populateMinecraftVersions() {
     dom.minecraftVersion.appendChild(option);
   });
 
-  if (!dom.minecraftVersion.value) {
-    dom.minecraftVersion.value = versions[0];
+  const preferredVersion = state.hydratedSettings?.minecraftVersion;
+  if (preferredVersion && versions.includes(preferredVersion)) {
+    dom.minecraftVersion.value = preferredVersion;
+    return;
   }
+
+  dom.minecraftVersion.value = versions[0];
 }
 
 function persistSettings() {
@@ -103,16 +108,46 @@ function hydrateSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
+    state.hydratedSettings = parsed;
 
     if (parsed.loader) dom.loader.value = parsed.loader;
     if (typeof parsed.featuredOnly === 'boolean') dom.featuredOnly.checked = parsed.featuredOnly;
     if (typeof parsed.autoDownload === 'boolean') dom.autoDownload.checked = parsed.autoDownload;
-
-    window.requestAnimationFrame(() => {
-      if (parsed.minecraftVersion) dom.minecraftVersion.value = parsed.minecraftVersion;
-    });
   } catch {
     // ignore malformed localStorage
+  }
+}
+
+async function fetchMinecraftVersions() {
+  try {
+    const response = await fetch(`${MODRINTH_API_BASE}/tag/game_version`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Modrinth tag request failed (${response.status}).`);
+    }
+
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error('Malformed game versions response from Modrinth.');
+    }
+
+    const releaseVersions = data
+      .filter((entry) => entry?.version_type === 'release' && typeof entry?.version === 'string')
+      .map((entry) => entry.version.trim())
+      .filter(Boolean);
+
+    if (releaseVersions.length) {
+      return releaseVersions;
+    }
+
+    throw new Error('No release versions returned by Modrinth.');
+  } catch (error) {
+    const message = normalizeError(error);
+    setFeedback(`Could not load latest versions from Modrinth. Falling back to built-in list. ${message}`, true);
+    return FALLBACK_MINECRAFT_VERSIONS;
   }
 }
 
