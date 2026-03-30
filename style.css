@@ -224,6 +224,14 @@ td {
   color: var(--danger);
 }
 
+.status-warn {
+  color: var(--warn);
+}
+
+.result-version-select {
+  min-width: 240px;
+}
+
 .app-footer {
   text-align: center;
   color: var(--muted);

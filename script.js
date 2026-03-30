@@ -262,22 +262,26 @@ async function processProject(project, mcVersion, loader, featuredOnly) {
     filename: '',
     status: 'failed',
     error: '',
-    blob: null
+    blob: null,
+    warning: '',
+    selectedVersionId: '',
+    selectableVersions: []
   };
 
   try {
-    const versions = await fetchAvailableVersions(project, mcVersion, loader, featuredOnly);
-
-    if (!Array.isArray(versions)) {
-      throw new Error('Malformed API response: expected an array of versions.');
-    }
+    let versions = await fetchAvailableVersions(project, mcVersion, loader, featuredOnly, true);
+    let warning = '';
 
     if (!versions.length) {
-      baseResult.error = 'No matching version for selected loader/version.';
-      return baseResult;
+      versions = await fetchAvailableVersions(project, null, loader, featuredOnly, false);
+      if (!versions.length) {
+        baseResult.error = 'No versions found for this project with the selected loader.';
+        return baseResult;
+      }
+      warning = `No exact ${loader} + Minecraft ${mcVersion} match. Using closest available version.`;
     }
 
-    const selected = chooseBestVersion(versions, featuredOnly);
+    const selected = chooseBestVersion(versions, mcVersion);
     if (!selected) {
       baseResult.error = 'No suitable version could be selected from matches.';
       return baseResult;
@@ -290,6 +294,7 @@ async function processProject(project, mcVersion, loader, featuredOnly) {
     }
 
     const blob = await fetchFileBlob(file.url);
+    const selectableVersions = buildSelectableVersions(versions);
 
     return {
       ...baseResult,
@@ -298,8 +303,11 @@ async function processProject(project, mcVersion, loader, featuredOnly) {
       versionType: selected.version_type || '(unknown)',
       filename: file.filename,
       status: 'success',
-      error: '',
-      blob
+      error: warning ? warning : '',
+      warning,
+      blob,
+      selectedVersionId: selected.id,
+      selectableVersions
     };
   } catch (error) {
     const normalized = normalizeError(error);
@@ -308,11 +316,11 @@ async function processProject(project, mcVersion, loader, featuredOnly) {
   }
 }
 
-async function fetchAvailableVersions(project, mcVersion, loader, featuredOnly) {
-  const params = new URLSearchParams({
-    loaders: JSON.stringify([loader]),
-    game_versions: JSON.stringify([mcVersion])
-  });
+async function fetchAvailableVersions(project, mcVersion, loader, featuredOnly, strictMcVersion) {
+  const params = new URLSearchParams({ loaders: JSON.stringify([loader]) });
+  if (strictMcVersion && mcVersion) {
+    params.set('game_versions', JSON.stringify([mcVersion]));
+  }
 
   const response = await fetch(`${MODRINTH_API_BASE}/project/${encodeURIComponent(project)}/version?${params.toString()}`, {
     method: 'GET',
@@ -336,14 +344,27 @@ async function fetchAvailableVersions(project, mcVersion, loader, featuredOnly) 
     throw new Error('Malformed API response from Modrinth.');
   }
 
-  if (!featuredOnly) return data;
-  return data.filter((version) => version.featured === true);
+  const withFiles = data.filter((version) => pickVersionFile(version));
+  if (!withFiles.length) return [];
+
+  if (strictMcVersion && mcVersion) {
+    const exact = withFiles.filter((version) => Array.isArray(version.game_versions) && version.game_versions.includes(mcVersion));
+    if (!featuredOnly) return exact;
+    return exact.filter((version) => version.featured === true);
+  }
+
+  if (!featuredOnly) return withFiles;
+  return withFiles.filter((version) => version.featured === true);
 }
 
-function chooseBestVersion(versions) {
+function chooseBestVersion(versions, targetMcVersion) {
   const clone = [...versions];
 
   clone.sort((a, b) => {
+    const versionDistanceA = getNearestMinecraftDistance(a.game_versions, targetMcVersion);
+    const versionDistanceB = getNearestMinecraftDistance(b.game_versions, targetMcVersion);
+    if (versionDistanceA !== versionDistanceB) return versionDistanceA - versionDistanceB;
+
     const typeScoreA = a.version_type === 'release' ? 1 : 0;
     const typeScoreB = b.version_type === 'release' ? 1 : 0;
     if (typeScoreA !== typeScoreB) return typeScoreB - typeScoreA;
@@ -358,6 +379,31 @@ function chooseBestVersion(versions) {
   });
 
   return clone[0] || null;
+}
+
+function buildSelectableVersions(versions) {
+  return [...versions]
+    .sort((a, b) => {
+      const dateA = new Date(a.date_published || 0).getTime();
+      const dateB = new Date(b.date_published || 0).getTime();
+      return dateB - dateA;
+    })
+    .map((version) => {
+      const file = pickVersionFile(version);
+      const gameVersions = Array.isArray(version.game_versions) && version.game_versions.length
+        ? version.game_versions.join(', ')
+        : 'unknown MC versions';
+      const versionType = version.version_type || 'unknown';
+      return {
+        id: version.id,
+        versionNumber: version.version_number || '(unknown)',
+        versionType,
+        gameVersions,
+        filename: file.filename,
+        fileUrl: file.url,
+        label: `${version.version_number || '(unknown)'} • ${gameVersions} • ${versionType}`
+      };
+    });
 }
 
 function pickVersionFile(version) {
@@ -473,13 +519,22 @@ function renderResults(results) {
 
   for (const row of results) {
     const tr = document.createElement('tr');
+    const hasPicker = row.status === 'success' && Array.isArray(row.selectableVersions) && row.selectableVersions.length > 1;
+    const versionPicker = hasPicker
+      ? `<select class="result-version-select" data-project="${escapeHtml(row.input)}">${row.selectableVersions.map((option) => (
+        `<option value="${escapeHtml(option.id)}" ${option.id === row.selectedVersionId ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
+      )).join('')}</select>`
+      : '—';
+    const statusClass = row.status === 'success' && row.warning ? 'status-warn' : row.status === 'success' ? 'status-ok' : 'status-fail';
+    const statusLabel = row.status === 'success' && row.warning ? 'warning' : row.status;
     tr.innerHTML = `
       <td>${escapeHtml(row.input)}</td>
       <td>${escapeHtml(row.title || '—')}</td>
       <td>${escapeHtml(row.versionNumber || '—')}</td>
       <td>${escapeHtml(row.versionType || '—')}</td>
       <td>${escapeHtml(row.filename || '—')}</td>
-      <td class="${row.status === 'success' ? 'status-ok' : 'status-fail'}">${escapeHtml(row.status)}</td>
+      <td>${versionPicker}</td>
+      <td class="${statusClass}">${escapeHtml(statusLabel)}</td>
       <td>${escapeHtml(row.error || '—')}</td>
     `;
     dom.resultsBody.appendChild(tr);
@@ -516,6 +571,89 @@ function setRunningState(running) {
   dom.downloadBtn.disabled = running || !state.zipBlob;
   dom.retryFailedBtn.disabled = running || state.failedInputs.length === 0;
   dom.copyFailedBtn.disabled = running || state.failedInputs.length === 0;
+}
+
+dom.resultsBody.addEventListener('change', async (event) => {
+  const select = event.target;
+  if (!(select instanceof HTMLSelectElement) || !select.classList.contains('result-version-select')) return;
+
+  const project = select.dataset.project;
+  const selectedVersionId = select.value;
+  const row = state.results.find((entry) => entry.input === project);
+  if (!row || row.status !== 'success') return;
+
+  const option = row.selectableVersions.find((entry) => entry.id === selectedVersionId);
+  if (!option) return;
+
+  setFeedback(`Switching ${project} to ${option.versionNumber}...`);
+  select.disabled = true;
+
+  try {
+    const blob = await fetchFileBlob(option.fileUrl);
+    row.versionNumber = option.versionNumber;
+    row.versionType = option.versionType;
+    row.filename = option.filename;
+    row.selectedVersionId = option.id;
+    row.blob = blob;
+    row.warning = '';
+    row.error = '';
+    await refreshZipFromResults();
+    renderResults(state.results);
+    setFeedback(`Updated ${project} to ${option.versionNumber}. ZIP has been rebuilt.`);
+  } catch (error) {
+    row.error = `Failed to switch version: ${normalizeError(error)}`;
+    renderResults(state.results);
+    setFeedback(row.error, true);
+  }
+});
+
+async function refreshZipFromResults() {
+  const filesForZip = state.results
+    .filter((row) => row.status === 'success' && row.blob && row.filename)
+    .map((row) => ({ filename: row.filename, blob: row.blob, input: row.input }));
+  state.matchedFiles = filesForZip;
+
+  if (!filesForZip.length) {
+    state.zipBlob = null;
+    dom.downloadBtn.disabled = true;
+    updateBadge(0);
+    return;
+  }
+
+  state.zipBlob = await buildZip(filesForZip);
+  dom.downloadBtn.disabled = false;
+  updateBadge(filesForZip.length);
+}
+
+function getNearestMinecraftDistance(gameVersions, targetVersion) {
+  if (!targetVersion || !Array.isArray(gameVersions) || !gameVersions.length) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const target = parseVersionNumber(targetVersion);
+  if (target === null) return Number.MAX_SAFE_INTEGER;
+
+  let best = Number.MAX_SAFE_INTEGER;
+  for (const entry of gameVersions) {
+    const parsed = parseVersionNumber(entry);
+    if (parsed === null) continue;
+    const distance = Math.abs(target - parsed);
+    if (distance < best) best = distance;
+  }
+
+  return best;
+}
+
+function parseVersionNumber(version) {
+  const parts = String(version)
+    .split('.')
+    .map((segment) => Number.parseInt(segment, 10))
+    .filter((value) => Number.isFinite(value));
+
+  if (!parts.length) return null;
+
+  const [major = 0, minor = 0, patch = 0] = parts;
+  return major * 1_000_000 + minor * 1_000 + patch;
 }
 
 function setFeedback(message, isError = false) {
