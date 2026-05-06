@@ -1,7 +1,7 @@
 # Modrinth Bulk Downloader
 
 Modrinth Bulk Downloader is a fully static web app that helps you resolve and download matching Modrinth files for a list of project slugs/IDs, then packages them into one ZIP archive directly in the browser.
-
+https://gr1zdev.github.io/ServerPluginPacker/
 ## Why this project exists
 
 Managing plugin or modpack-compatible downloads manually is repetitive. This tool lets you:
