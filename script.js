@@ -18,6 +18,7 @@ const dom = {
   completedCount: document.getElementById('completedCount'),
   successCount: document.getElementById('successCount'),
   failedCount: document.getElementById('failedCount'),
+  warningCount: document.getElementById('warningCount'),
   currentProject: document.getElementById('currentProject'),
   dropZone: document.getElementById('dropZone'),
   matchBadge: document.getElementById('matchBadge')
@@ -183,7 +184,7 @@ async function runWorkflow() {
   const loader = dom.loader.value;
   const featuredOnly = dom.featuredOnly.checked;
 
-  updateProgress({ total: projects.length, completed: 0, success: 0, failed: 0, current: 'Starting...' });
+  updateProgress({ total: projects.length, completed: 0, success: 0, failed: 0, warnings: 0, current: 'Starting...' });
 
   const results = [];
   const filesForZip = [];
@@ -192,9 +193,10 @@ async function runWorkflow() {
   let completed = 0;
   let success = 0;
   let failed = 0;
+  let warnings = 0;
 
   for (const project of projects) {
-    updateProgress({ total: projects.length, completed, success, failed, current: project });
+    updateProgress({ total: projects.length, completed, success, failed, warnings, current: project });
 
     let result;
     if (versionCache.has(project.toLowerCase())) {
@@ -216,10 +218,14 @@ async function runWorkflow() {
       failed += 1;
     }
 
+    if (result.warning) {
+      warnings += 1;
+    }
+
     completed += 1;
     results.push(result);
     renderResults(results);
-    updateProgress({ total: projects.length, completed, success, failed, current: project });
+    updateProgress({ total: projects.length, completed, success, failed, warnings, current: project });
   }
 
   state.results = results;
@@ -232,7 +238,7 @@ async function runWorkflow() {
     try {
       state.zipBlob = await buildZip(filesForZip);
       dom.downloadBtn.disabled = false;
-      setFeedback(`Completed. ${success} matched, ${failed} failed. ZIP is ready.`, false);
+      setFeedback(`Completed. ${success} matched, ${failed} failed, ${warnings} warnings. ZIP is ready.`, false);
 
       if (dom.autoDownload.checked) {
         triggerBlobDownload(state.zipBlob, buildZipName());
@@ -249,7 +255,7 @@ async function runWorkflow() {
   }
 
   updateBadge(success);
-  updateProgress({ total: projects.length, completed, success, failed, current: 'Done' });
+  updateProgress({ total: projects.length, completed, success, failed, warnings, current: 'Done' });
   setRunningState(false);
 }
 
@@ -541,11 +547,12 @@ function renderResults(results) {
   }
 }
 
-function updateProgress({ total, completed, success, failed, current }) {
+function updateProgress({ total, completed, success, failed, warnings, current }) {
   dom.totalCount.textContent = String(total ?? 0);
   dom.completedCount.textContent = String(completed ?? 0);
   dom.successCount.textContent = String(success ?? 0);
   dom.failedCount.textContent = String(failed ?? 0);
+  dom.warningCount.textContent = String(warnings ?? 0);
   dom.currentProject.textContent = current || '—';
 }
 
